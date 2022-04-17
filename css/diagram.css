@@ -58,5 +58,6 @@ body {
     display: none;
 }
 .active {
-    display: block;
+    display: flex;
+    flex-wrap: wrap;
 }
