@@ -70,4 +70,5 @@ body {
     height: 100%;
     min-width: 1500px;
     min-height: 1500px;
+    zoom: 2;
 }

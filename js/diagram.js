@@ -13,6 +13,7 @@ const MIDDLE_MOUSE_BUTTON = 1;
 const RIGHT_MOUSE_BUTTON = 2;
 
 const DEFAULT_NODE_SCALE = 2.5;
+let ZOOM_VAL = 1;
 
 //Drag Node
 let selectedElement = null;
@@ -217,3 +218,19 @@ function wheelUpHandler(event) {
 board.addEventListener("mousedown", wheelDownHandler);
 board.addEventListener("mousemove", wheelMoveHandler);
 board.addEventListener("mouseup", wheelUpHandler);
+
+function ctrlWheelHandler(event) {
+    if (event.ctrlKey) {
+        event.preventDefault();
+
+        //올리면 마이너스
+        if (event.deltaY > 0) {
+            ZOOM_VAL -= 0.1;
+            board.style.zoom = ZOOM_VAL;
+        } else if (event.deltaY < 0) {
+            ZOOM_VAL += 0.1;
+            board.style.zoom = ZOOM_VAL;
+        }
+    }
+}
+board.addEventListener("mousewheel", ctrlWheelHandler);
