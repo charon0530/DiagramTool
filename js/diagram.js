@@ -2,8 +2,9 @@ const handler = document.querySelector(".handler");
 const wrapper = document.querySelector(".contents");
 const left_region = document.querySelector(".left_region");
 const menus = document.querySelectorAll(".menu");
-const pad_items = document.querySelectorAll(".menu_item svg");
-const board = document.querySelector(".mid_region");
+const pad_items = document.querySelectorAll(".menu_item svg g");
+const mid_region = document.querySelector(".mid_region");
+const board = document.querySelector(".board");
 const MIN_WIDTH = 0;
 
 //Drag Node
@@ -42,35 +43,69 @@ menus.forEach((menu) => {
 
 pad_items.forEach((item) => {
     item.addEventListener("click", function (event) {
-        const element = event.currentTarget.children[0].cloneNode(true);
-        element.setAttribute("width", element.getAttribute("width") * 5);
-        element.setAttribute("height", element.getAttribute("height") * 5);
+        console.log(event.currentTarget.querySelector("rect,path"));
+
+        const element = event.currentTarget
+            .querySelector("rect,path")
+            .cloneNode(true);
+
         element.classList.add("draggable");
-        element.setAttribute("x", 0);
-        element.setAttribute("y", 0);
 
-        document.addEventListener("mousedown", onMouseDown);
-        document.addEventListener("mousemove", onMouseMove);
-        document.addEventListener("mouseup", onMouseUp);
-        document.addEventListener("mouseleave", onMouseLeave);
+        //element.setAttribute("width", element.getAttribute("width") * 5);
+        //element.setAttribute("height", element.getAttribute("height") * 5);
 
-        board.appendChild(element);
+        console.log("fff", element.getBoundingClientRect());
+
+        //element.setAttribute("x", create_position.x);
+        //element.setAttribute("y", create_position.y);
+
+        board.addEventListener("mousedown", onMouseDown);
+        board.addEventListener("mousemove", onMouseMove);
+        board.addEventListener("mouseup", onMouseUp);
+        board.addEventListener("mouseleave", onMouseLeave);
+
+        const wrapper_g = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "g"
+        );
+        wrapper_g.setAttribute("transform", "scale(5.0)");
+
+        const wrapper_svg = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "svg"
+        );
+
+        wrapper_g.appendChild(element);
+        wrapper_svg.appendChild(wrapper_g);
+        board.appendChild(wrapper_svg);
+        console.log("fff", element.getBoundingClientRect());
+        const create_position = _ViewPort2BoardSpace(
+            mid_region.clientWidth / 2 +
+                left_region.clientWidth +
+                handler.clientWidth -
+                element.getBoundingClientRect().width / 2,
+            mid_region.clientHeight / 2
+        );
+        wrapper_svg.setAttribute("x", create_position.x);
+        wrapper_svg.setAttribute("y", create_position.y);
     });
 
     function onMouseDown(event) {
+        console.log(event.target.parentNode.parentNode);
+
         if (event.target.classList.contains("draggable")) {
-            selectedElement = event.target;
-            selectedOffset = _ViewPort2BoardSpace(event);
-            console.log(selectedOffset);
+            selectedElement = event.target.parentNode.parentNode;
+            board.removeChild(selectedElement);
+            selectedOffset = _ViewPort2BoardSpace(event.clientX, event.clientY);
             selectedOffset.x -= selectedElement.getAttribute("x");
             selectedOffset.y -= selectedElement.getAttribute("y");
+            board.appendChild(selectedElement);
         }
     }
     function onMouseMove(event) {
         if (selectedElement !== null) {
             event.preventDefault();
-            let coord = _ViewPort2BoardSpace(event);
-            console.log(selectedOffset.x);
+            let coord = _ViewPort2BoardSpace(event.clientX, event.clientY);
             selectedElement.setAttribute("x", coord.x - selectedOffset.x);
             selectedElement.setAttribute("y", coord.y - selectedOffset.y);
         }
@@ -79,12 +114,13 @@ pad_items.forEach((item) => {
         selectedElement = null;
     }
     function onMouseLeave(event) {}
-    function _ViewPort2BoardSpace(event) {
+    function _ViewPort2BoardSpace(clientX, clientY) {
         const CTM = board.getScreenCTM();
 
         return {
-            x: (event.clientX - CTM.e) / CTM.a,
-            y: (event.clientY - CTM.f) / CTM.d,
+            x: (clientX - CTM.e) / CTM.a,
+            y: (clientY - CTM.f) / CTM.d,
         };
     }
 });
+//dom point로 좌표변환 다시하기
