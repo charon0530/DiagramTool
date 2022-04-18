@@ -35,11 +35,13 @@
                             </g>
                         </svg>
                         <svg width="30" height="30">
-                            <rect
-                                width="20"
-                                height="20"
-                                style="fill: rgb(255, 0, 255)"
-                            ></rect>
+                            <g>
+                                <rect
+                                    width="20"
+                                    height="20"
+                                    style="fill: rgb(255, 0, 255)"
+                                ></rect>
+                            </g>
                         </svg>
                     </div>
                 </div>
@@ -53,7 +55,44 @@
                 </div>
             </div>
             <div class="region handler"></div>
-            <div class="region mid_region"><svg class="board"></svg></div>
+            <div class="region mid_region">
+                <svg class="board">
+                    <defs>
+                        <pattern
+                            id="smallGrid"
+                            width="10"
+                            height="10"
+                            patternUnits="userSpaceOnUse"
+                        >
+                            <path
+                                d="M 10 0 L 0 0 0 10"
+                                fill="none"
+                                stroke="gray"
+                                stroke-width="0.5"
+                            />
+                        </pattern>
+                        <pattern
+                            id="grid"
+                            width="100"
+                            height="100"
+                            patternUnits="userSpaceOnUse"
+                        >
+                            <rect
+                                width="100"
+                                height="100"
+                                fill="url(#smallGrid)"
+                            />
+                            <path
+                                d="M 100 0 L 0 0 0 100"
+                                fill="none"
+                                stroke="gray"
+                                stroke-width="1"
+                            />
+                        </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#grid)" />
+                </svg>
+            </div>
             <div class="region right_region"></div>
         </div>
         <script src="../js/diagram.js"></script>
