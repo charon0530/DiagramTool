@@ -13,6 +13,7 @@ const MIDDLE_MOUSE_BUTTON = 1;
 const RIGHT_MOUSE_BUTTON = 2;
 
 const DEFAULT_NODE_SCALE = 5;
+const DEFAULT_SNAP_GAP = 10;
 let ZOOM_VAL = 1;
 
 //Drag Node
@@ -34,6 +35,12 @@ function _ViewPort2BoardSpace(clientX, clientY) {
         x: (clientX - CTM.e) / CTM.a,
         y: (clientY - CTM.f) / CTM.d,
     };
+}
+
+function _SnapBoardSpace(x, y) {
+    return [x, y].map(
+        (num) => parseInt(num / DEFAULT_SNAP_GAP) * DEFAULT_SNAP_GAP
+    );
 }
 
 function onMouseDown_Handler(event) {
@@ -118,10 +125,10 @@ function onMouseMove_Board(event) {
         for (let target of selectedElement_set) {
             const targetX = Number(target.translateOffsetX) + Number(deltaX);
             const targetY = Number(target.translateOffsetY) + Number(deltaY);
-
+            const [snapX, snapY] = _SnapBoardSpace(targetX, targetY);
             target.setAttribute(
                 "transform",
-                `translate(${targetX} ${targetY}) scale(${target.scaleOffsetX} ${target.scaleOffsetY})`
+                `translate(${snapX} ${snapY}) scale(${target.scaleOffsetX} ${target.scaleOffsetY})`
             );
         }
     }
@@ -157,10 +164,10 @@ function makeDraggableWrapper(
 ) {
     element.classList.add("draggable");
     const wrapper_g = document.createElementNS(ns, "g");
-
+    const [snapX, snapY] = _SnapBoardSpace(x, y);
     wrapper_g.setAttribute(
         "transform",
-        `translate(${x} ${y}) scale(${size} ${size})`
+        `translate(${snapX} ${snapY}) scale(${size} ${size})`
     );
     wrapper_g.translateOffsetX = Number(x);
     wrapper_g.translateOffsetY = Number(y);
@@ -190,10 +197,10 @@ pad_items.forEach((item) => {
             mid_region.clientHeight / 2
         );
 
-        console.log(g.getBoundingClientRect().width);
+        const [snapX, snapY] = _SnapBoardSpace(init_pos.x, init_pos.y);
         g.setAttribute(
             "transform",
-            `translate(${init_pos.x} ${init_pos.y}) scale(${g.scaleOffsetX} ${g.scaleOffsetY})`
+            `translate(${snapX} ${snapY}) scale(${g.scaleOffsetX} ${g.scaleOffsetY})`
         );
     });
 });

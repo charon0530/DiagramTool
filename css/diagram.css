@@ -61,6 +61,9 @@ body {
 .menu_item {
     display: none;
 }
+.menu_item svg {
+    margin: auto;
+}
 .active {
     display: flex;
     flex-wrap: wrap;
