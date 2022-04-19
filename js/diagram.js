@@ -12,13 +12,12 @@ const LEFT_MOUSE_BUTTON = 0;
 const MIDDLE_MOUSE_BUTTON = 1;
 const RIGHT_MOUSE_BUTTON = 2;
 
-const DEFAULT_NODE_SCALE = 2.5;
+const DEFAULT_NODE_SCALE = 5;
 let ZOOM_VAL = 1;
 
 //Drag Node
 let selectedElement = null;
 const selectedElement_set = new Set();
-let selectedOffset = {};
 let isDragging = false;
 ///////////////////////////
 
@@ -26,44 +25,58 @@ let isDragging = false;
 let canResizing = false;
 let clicked_Xpos = 0;
 //////////////////////////
-document.addEventListener("mousedown", (event) => {
+let CTRLKEY = false;
+
+function _ViewPort2BoardSpace(clientX, clientY) {
+    const CTM = board.getScreenCTM();
+
+    return {
+        x: (clientX - CTM.e) / CTM.a,
+        y: (clientY - CTM.f) / CTM.d,
+    };
+}
+
+function onMouseDown_Handler(event) {
     if (event.button !== LEFT_MOUSE_BUTTON) return;
     if (event.target !== handler) return;
     clicked_Xpos = event.clientX - handler.getBoundingClientRect().left;
     canResizing = true;
-});
-
-document.addEventListener("mousemove", (event) => {
+}
+function onMouseMove_Handler(event) {
     if (canResizing === false) return false;
-
     let pointerRelativeXpos = event.clientX - clicked_Xpos;
     left_region.style.width = Math.max(MIN_WIDTH, pointerRelativeXpos) + "px";
     left_region.style.flexGrow = 0;
-});
-
-document.addEventListener("mouseup", (event) => {
+}
+function onMouseUp_Handler(event) {
     if (event.button !== LEFT_MOUSE_BUTTON) return;
-
     canResizing = false;
-});
+}
+document.addEventListener("mousedown", onMouseDown_Handler);
+document.addEventListener("mousemove", onMouseMove_Handler);
+document.addEventListener("mouseup", onMouseUp_Handler);
 /////////////////////////////////////////////////////////////////////
-menus.forEach((menu) => {
-    menu.addEventListener("click", function (event) {
-        if (event.button !== LEFT_MOUSE_BUTTON) return;
+function onClick_Menu(event) {
+    if (event.button !== LEFT_MOUSE_BUTTON) return;
+    event.stopPropagation();
+    event.currentTarget.parentNode.children[1].classList.toggle("active");
+}
 
-        event.stopPropagation();
-        event.currentTarget.parentNode.children[1].classList.toggle("active");
-    });
+menus.forEach((menu) => {
+    menu.addEventListener("click", onClick_Menu);
 });
 /////////////////////////////////////////////////////////////////////
-function onMouseDownDragHandler(event) {
+function onMouseDown_Board(event) {
+    console.log(event.target);
     if (event.button !== LEFT_MOUSE_BUTTON) return;
     if (event.target === board) {
-        console.log("do");
+        console.log("[selectedElement_set Clear!]");
         selectedElement = null;
         selectedElement_set.clear();
     } else if (event.target.classList.contains("draggable")) {
-        selectedElement = event.target.parentNode.parentNode;
+        selectedElement = event.target.parentNode;
+        selectedElement.clickOffsetX = event.clientX;
+        selectedElement.clickOffsetY = event.clientY;
 
         if (event.ctrlKey) {
             if (selectedElement_set.has(selectedElement)) {
@@ -80,70 +93,86 @@ function onMouseDownDragHandler(event) {
             }
         }
 
-        console.log(selectedElement_set);
+        _setSeletedOffsets();
 
+        console.log("tttt", selectedElement);
         board.removeChild(selectedElement);
-
-        for (let se of selectedElement_set) {
-            se.selectedOffset = _ViewPort2BoardSpace(
-                event.clientX,
-                event.clientY
-            );
-            se.selectedOffset.x -= se.getAttribute("x");
-            se.selectedOffset.y -= se.getAttribute("y");
-        }
 
         board.appendChild(selectedElement);
         isDragging = true;
     }
 }
-function onMouseMoveDragHandler(event) {
+
+function onMouseMove_Board(event) {
     if (
         isDragging &&
         selectedElement_set.size > 0 &&
-        selectedElement_set.has(event.target.parentNode.parentNode)
+        selectedElement_set.has(selectedElement)
     ) {
         event.preventDefault();
-        for (let se of selectedElement_set) {
-            let coord = _ViewPort2BoardSpace(event.clientX, event.clientY);
-            se.setAttribute("x", coord.x - se.selectedOffset.x);
-            se.setAttribute("y", coord.y - se.selectedOffset.y);
+
+        const [afterX, afterY] = [event.clientX, event.clientY];
+        const deltaX = (afterX - selectedElement.clickOffsetX) / ZOOM_VAL;
+        const deltaY = (afterY - selectedElement.clickOffsetY) / ZOOM_VAL;
+
+        for (let target of selectedElement_set) {
+            const targetX = Number(target.translateOffsetX) + Number(deltaX);
+            const targetY = Number(target.translateOffsetY) + Number(deltaY);
+
+            target.setAttribute(
+                "transform",
+                `translate(${targetX} ${targetY}) scale(${target.scaleOffsetX} ${target.scaleOffsetY})`
+            );
         }
     }
 }
-function onMouseUpDragHandler(event) {
+
+function onMouseUp_Board(event) {
     if (event.button !== LEFT_MOUSE_BUTTON) return;
     isDragging = false;
-    //selectedElement = null;
-}
-function _ViewPort2BoardSpace(clientX, clientY) {
-    const CTM = board.getScreenCTM();
-
-    return {
-        x: (clientX - CTM.e) / CTM.a,
-        y: (clientY - CTM.f) / CTM.d,
-    };
 }
 
-function makeDraggableWrapperNode(
+function _setSeletedOffsets() {
+    const reg = /translate\((.*?) (.*?)\) scale\((.*?) (.*?)\)/;
+
+    for (let target of selectedElement_set) {
+        const regResult = target.getAttribute("transform").match(reg);
+        console.log("[reg]", regResult);
+        const [translateX, translateY] = [regResult[1], regResult[2]];
+        const [scaleX, scaleY] = [regResult[3], regResult[4]];
+
+        target.translateOffsetX = Number(translateX);
+        target.translateOffsetY = Number(translateY);
+        target.scaleOffsetX = Number(scaleX);
+        target.scaleOffsetY = Number(scaleY);
+    }
+}
+
+function makeDraggableWrapper(
     element,
     parent = null,
-    size = 5.0,
+    size = DEFAULT_NODE_SCALE,
     x = 0,
     y = 0
 ) {
     element.classList.add("draggable");
     const wrapper_g = document.createElementNS(ns, "g");
 
-    wrapper_g.setAttribute("transform", `scale(${size})`);
-    const wrapper_svg = document.createElementNS(ns, "svg");
+    wrapper_g.setAttribute(
+        "transform",
+        `translate(${x} ${y}) scale(${size} ${size})`
+    );
+    wrapper_g.translateOffsetX = Number(x);
+    wrapper_g.translateOffsetY = Number(y);
+    wrapper_g.scaleOffsetX = Number(size);
+    wrapper_g.scaleOffsetY = Number(size);
+
     wrapper_g.appendChild(element);
-    wrapper_svg.appendChild(wrapper_g);
-    wrapper_svg.setAttribute("x", x);
-    wrapper_svg.setAttribute("y", y);
-    parent.appendChild(wrapper_svg);
-    return wrapper_svg;
+    parent.appendChild(wrapper_g);
+
+    return wrapper_g;
 }
+
 pad_items.forEach((item) => {
     item.addEventListener("click", function (event) {
         if (event.button !== LEFT_MOUSE_BUTTON) return;
@@ -151,38 +180,34 @@ pad_items.forEach((item) => {
             .querySelector("rect,path")
             .cloneNode(true);
 
-        const wrapper_svg = makeDraggableWrapperNode(
-            element,
-            board,
-            DEFAULT_NODE_SCALE
-        );
+        const g = makeDraggableWrapper(element, board, DEFAULT_NODE_SCALE);
 
-        console.log(
-            "[element's getBoundingClient]",
-            element.getBoundingClientRect()
-        );
-        const create_position = _ViewPort2BoardSpace(
+        const init_pos = _ViewPort2BoardSpace(
             mid_region.clientWidth / 2 +
                 left_region.clientWidth +
                 handler.clientWidth -
-                element.getBoundingClientRect().width / 2,
+                g.getBoundingClientRect().width / 2,
             mid_region.clientHeight / 2
         );
-        wrapper_svg.setAttribute("x", create_position.x);
-        wrapper_svg.setAttribute("y", create_position.y);
+
+        console.log(g.getBoundingClientRect().width);
+        g.setAttribute(
+            "transform",
+            `translate(${init_pos.x} ${init_pos.y}) scale(${g.scaleOffsetX} ${g.scaleOffsetY})`
+        );
     });
 });
 
-board.addEventListener("mousedown", onMouseDownDragHandler);
-board.addEventListener("mousemove", onMouseMoveDragHandler);
-board.addEventListener("mouseup", onMouseUpDragHandler);
+board.addEventListener("mousedown", onMouseDown_Board);
+board.addEventListener("mousemove", onMouseMove_Board);
+board.addEventListener("mouseup", onMouseUp_Board);
 
 //grab board
 ////////////////////////////////////////////////
 const scrollable_div = board.parentElement;
 let isGrabbing = false;
 let std_board_pos = {};
-function wheelDownHandler(event) {
+function onWheelDown_Board(event) {
     event.preventDefault();
     if (event.button !== MIDDLE_MOUSE_BUTTON) return;
     console.log("wheel down");
@@ -196,7 +221,7 @@ function wheelDownHandler(event) {
     isGrabbing = true;
 }
 
-function wheelMoveHandler(event) {
+function onWheelPressMove_Board(event) {
     if (!isGrabbing) return;
     console.log("wheel move");
 
@@ -207,7 +232,7 @@ function wheelMoveHandler(event) {
     scrollable_div.scrollLeft = std_board_pos.cur_scroll_left - dx;
 }
 
-function wheelUpHandler(event) {
+function onWheelUp_Board(event) {
     if (event.button !== MIDDLE_MOUSE_BUTTON) return;
     console.log("wheel up");
 
@@ -215,15 +240,13 @@ function wheelUpHandler(event) {
     scrollable_div.style.cursor = "default";
     scrollable_div.style.removeProperty("user-select");
 }
-board.addEventListener("mousedown", wheelDownHandler);
-board.addEventListener("mousemove", wheelMoveHandler);
-board.addEventListener("mouseup", wheelUpHandler);
+board.addEventListener("mousedown", onWheelDown_Board);
+board.addEventListener("mousemove", onWheelPressMove_Board);
+board.addEventListener("mouseup", onWheelUp_Board);
 
-function ctrlWheelHandler(event) {
+function onWheel_Board(event) {
     if (event.ctrlKey) {
         event.preventDefault();
-
-        //올리면 마이너스
         if (event.deltaY > 0) {
             ZOOM_VAL -= 0.1;
             board.style.zoom = ZOOM_VAL;
@@ -231,6 +254,7 @@ function ctrlWheelHandler(event) {
             ZOOM_VAL += 0.1;
             board.style.zoom = ZOOM_VAL;
         }
+        _setSeletedOffsets();
     }
 }
-board.addEventListener("mousewheel", ctrlWheelHandler);
+board.addEventListener("mousewheel", onWheel_Board);
