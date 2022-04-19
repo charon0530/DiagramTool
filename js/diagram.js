@@ -43,6 +43,22 @@ function _SnapBoardSpace(x, y) {
     );
 }
 
+function _SetSeletedOffsets() {
+    const reg = /translate\((.*?) (.*?)\) scale\((.*?) (.*?)\)/;
+
+    for (let target of selectedElement_set) {
+        const regResult = target.getAttribute("transform").match(reg);
+        console.log("[reg]", regResult);
+        const [translateX, translateY] = [regResult[1], regResult[2]];
+        const [scaleX, scaleY] = [regResult[3], regResult[4]];
+
+        target.translateOffsetX = Number(translateX);
+        target.translateOffsetY = Number(translateY);
+        target.scaleOffsetX = Number(scaleX);
+        target.scaleOffsetY = Number(scaleY);
+    }
+}
+
 function onMouseDown_Handler(event) {
     if (event.button !== LEFT_MOUSE_BUTTON) return;
     if (event.target !== handler) return;
@@ -73,34 +89,60 @@ menus.forEach((menu) => {
     menu.addEventListener("click", onClick_Menu);
 });
 /////////////////////////////////////////////////////////////////////
+
+function selectNode(element, event) {
+    //임시로 구현 => 선택 시 resizers을 그린 g태그를 visible하게 바꿀것임
+    selectedElement = element;
+    //event.target === child of g
+    event.target.classList.add("selected");
+    element.clickOffsetX = event.clientX;
+    element.clickOffsetY = event.clientY;
+    selectedElement_set.add(element);
+}
+function deSelectNode(element) {
+    selectedElement = null;
+
+    element.querySelector(".selectable").classList.remove("selected");
+    selectedElement_set.delete(element);
+}
+function deSelectNodeAll() {
+    selectedElement = null;
+    for (let target of selectedElement_set) {
+        console.log("hele");
+        target.querySelector(".selectable").classList.remove("selected");
+    }
+    selectedElement_set.clear();
+}
+
 function onMouseDown_Board(event) {
     console.log(event.target);
     if (event.button !== LEFT_MOUSE_BUTTON) return;
     if (event.target === board) {
         console.log("[selectedElement_set Clear!]");
-        selectedElement = null;
-        selectedElement_set.clear();
-    } else if (event.target.classList.contains("draggable")) {
-        selectedElement = event.target.parentNode;
-        selectedElement.clickOffsetX = event.clientX;
-        selectedElement.clickOffsetY = event.clientY;
+        deSelectNodeAll();
+    } else if (
+        event.target.classList.contains("draggable") &&
+        event.target.classList.contains("selectable")
+    ) {
+        // pick g tag
+        const picked_g = event.target.parentNode;
 
         if (event.ctrlKey) {
-            if (selectedElement_set.has(selectedElement)) {
-                selectedElement_set.delete(selectedElement);
+            if (selectedElement_set.has(picked_g)) {
+                deSelectNode(picked_g);
             } else {
-                selectedElement_set.add(selectedElement);
+                selectNode(picked_g, event);
             }
         } else {
-            if (selectedElement_set.has(selectedElement)) {
+            if (selectedElement_set.has(picked_g)) {
                 //
             } else {
-                selectedElement_set.clear();
-                selectedElement_set.add(selectedElement);
+                deSelectNodeAll();
+                console.log(picked_g);
+                selectNode(picked_g, event);
             }
         }
-
-        _setSeletedOffsets();
+        _SetSeletedOffsets();
 
         console.log("tttt", selectedElement);
         board.removeChild(selectedElement);
@@ -139,22 +181,6 @@ function onMouseUp_Board(event) {
     isDragging = false;
 }
 
-function _setSeletedOffsets() {
-    const reg = /translate\((.*?) (.*?)\) scale\((.*?) (.*?)\)/;
-
-    for (let target of selectedElement_set) {
-        const regResult = target.getAttribute("transform").match(reg);
-        console.log("[reg]", regResult);
-        const [translateX, translateY] = [regResult[1], regResult[2]];
-        const [scaleX, scaleY] = [regResult[3], regResult[4]];
-
-        target.translateOffsetX = Number(translateX);
-        target.translateOffsetY = Number(translateY);
-        target.scaleOffsetX = Number(scaleX);
-        target.scaleOffsetY = Number(scaleY);
-    }
-}
-
 function makeDraggableWrapper(
     element,
     parent = null,
@@ -163,6 +189,8 @@ function makeDraggableWrapper(
     y = 0
 ) {
     element.classList.add("draggable");
+    element.classList.add("selectable");
+
     const wrapper_g = document.createElementNS(ns, "g");
     const [snapX, snapY] = _SnapBoardSpace(x, y);
     wrapper_g.setAttribute(
@@ -261,7 +289,7 @@ function onWheel_Board(event) {
             ZOOM_VAL += 0.1;
             board.style.zoom = ZOOM_VAL;
         }
-        _setSeletedOffsets();
+        _SetSeletedOffsets();
     }
 }
 board.addEventListener("mousewheel", onWheel_Board);

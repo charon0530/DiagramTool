@@ -85,3 +85,24 @@ body {
 .plain-draggable-moving {
     cursor: move;
 }
+
+.item_1 {
+    fill: #ffff00;
+    stroke: #0000ff;
+}
+.item_2 {
+    fill: #ff009d;
+    stroke: none;
+}
+.item_3 {
+    fill: rgb(0, 0, 255);
+}
+.item_4 {
+    fill: rgb(255, 0, 255);
+}
+
+.selected {
+    stroke-width: 0.2;
+    stroke-dasharray: 0.8;
+    stroke: rgb(0, 0, 0);
+}

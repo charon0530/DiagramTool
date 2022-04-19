@@ -16,24 +16,12 @@
                     <div class="menu_item">
                         <svg width="30" height="30">
                             <g>
-                                <style>
-                                    .s0 {
-                                        fill: #ffff00;
-                                        stroke: #0000ff;
-                                    }
-                                </style>
-                                <path class="s0" d="m2 5h26v20h-26z" />
+                                <path class="item_1" d="m2 5h26v20h-26z" />
                             </g>
                         </svg>
                         <svg width="30" height="30">
                             <g>
-                                <style>
-                                    .s0 {
-                                        fill: #ff009d;
-                                        stroke: none;
-                                    }
-                                </style>
-                                <path class="s0" d="m0 6h30v18h-30z" />
+                                <path class="item_2" d="m0 6h30v18h-30z" />
                             </g>
                         </svg>
                         <svg width="30" height="30">
@@ -41,7 +29,7 @@
                                 <rect
                                     width="20"
                                     height="20"
-                                    style="fill: rgb(0, 0, 255)"
+                                    class="item_3"
                                 ></rect>
                             </g>
                         </svg>
@@ -50,7 +38,7 @@
                                 <rect
                                     width="20"
                                     height="20"
-                                    style="fill: rgb(255, 0, 255)"
+                                    class="item_4"
                                 ></rect>
                             </g>
                         </svg>
@@ -101,7 +89,12 @@
                             />
                         </pattern>
                     </defs>
-                    <rect width="100%" height="100%" fill="url(#grid)" />
+                    <rect
+                        width="100%"
+                        height="100%"
+                        fill="url(#grid)"
+                        style="pointer-events: none"
+                    />
                 </svg>
             </div>
             <div class="region right_region">
