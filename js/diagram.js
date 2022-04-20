@@ -195,8 +195,10 @@ function onMouseDown_Board(event) {
         }
         _SetSeletedOffsets();
 
-        board.removeChild(selectedElement);
-        board.appendChild(selectedElement);
+        if (selectedElement) {
+            board.removeChild(selectedElement);
+            board.appendChild(selectedElement);
+        }
         isDragging = true;
     }
 }
