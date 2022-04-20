@@ -2,7 +2,7 @@ const handler = document.querySelector(".handler");
 const wrapper = document.querySelector(".contents");
 const left_region = document.querySelector(".left_region");
 const menus = document.querySelectorAll(".menu");
-const pad_items = document.querySelectorAll(".menu_item svg g");
+const item_boxes = document.querySelectorAll(".menu_item svg");
 const mid_region = document.querySelector(".mid_region");
 const board = document.querySelector(".board");
 const MIN_WIDTH = 0;
@@ -20,12 +20,15 @@ let ZOOM_VAL = 1;
 let selectedElement = null;
 const selectedElement_set = new Set();
 let isDragging = false;
-///////////////////////////
+/**********************************************************************************************/
+let creatingElement_g = null;
+let selectedBox_svg = null;
 
 //Resizing left_region
 let canResizing = false;
 let clicked_Xpos = 0;
-//////////////////////////
+/**********************************************************************************************/
+//#region Util
 let CTRLKEY = false;
 
 function _ViewPort2BoardSpace(clientX, clientY) {
@@ -36,19 +39,17 @@ function _ViewPort2BoardSpace(clientX, clientY) {
         y: (clientY - CTM.f) / CTM.d,
     };
 }
-
 function _SnapBoardSpace(x, y) {
     return [x, y].map(
         (num) => parseInt(num / DEFAULT_SNAP_GAP) * DEFAULT_SNAP_GAP
     );
 }
-
 function _SetSeletedOffsets() {
     const reg = /translate\((.*?) (.*?)\) scale\((.*?) (.*?)\)/;
 
     for (let target of selectedElement_set) {
         const regResult = target.getAttribute("transform").match(reg);
-        console.log("[reg]", regResult);
+        //console.log("[REGEXP RESULT]", regResult);
         const [translateX, translateY] = [regResult[1], regResult[2]];
         const [scaleX, scaleY] = [regResult[3], regResult[4]];
 
@@ -58,7 +59,37 @@ function _SetSeletedOffsets() {
         target.scaleOffsetY = Number(scaleY);
     }
 }
+function _SetGtagTransform(gTag, translateX, translateY, scaleX, scaleY) {
+    gTag.setAttribute(
+        "transform",
+        `translate(${translateX} ${translateY}) scale(${scaleX} ${scaleY})`
+    );
+}
+function _MoveGtag(
+    gTag,
+    toViewPortX,
+    toViewPortY,
+    viewPortOffSetX,
+    viewPortOffSetY
+) {
+    const deltaX = (toViewPortX - viewPortOffSetX) / ZOOM_VAL;
+    const deltaY = (toViewPortY - viewPortOffSetY) / ZOOM_VAL;
 
+    const resultX = Number(gTag.translateOffsetX) + Number(deltaX);
+    const resultY = Number(gTag.translateOffsetY) + Number(deltaY);
+
+    const [snapX, snapY] = _SnapBoardSpace(resultX, resultY);
+    _SetGtagTransform(gTag, snapX, snapY, gTag.scaleOffsetX, gTag.scaleOffsetY);
+}
+function _DeleteGtag(gTag) {
+    console.log("[G_TAG_DELETED]");
+    selectedElement_set.delete(gTag);
+    if (selectedElement === gTag) selectedElement = null;
+    gTag.remove();
+}
+//#endregion
+
+//#region SideBarHandle
 function onMouseDown_Handler(event) {
     if (event.button !== LEFT_MOUSE_BUTTON) return;
     if (event.target !== handler) return;
@@ -66,19 +97,39 @@ function onMouseDown_Handler(event) {
     canResizing = true;
 }
 function onMouseMove_Handler(event) {
-    if (canResizing === false) return false;
-    let pointerRelativeXpos = event.clientX - clicked_Xpos;
-    left_region.style.width = Math.max(MIN_WIDTH, pointerRelativeXpos) + "px";
-    left_region.style.flexGrow = 0;
+    if (canResizing) {
+        let pointerRelativeXpos = event.clientX - clicked_Xpos;
+        left_region.style.width =
+            Math.max(MIN_WIDTH, pointerRelativeXpos) + "px";
+        left_region.style.flexGrow = 0;
+    } else if (creatingElement_g) {
+        _MoveGtag(
+            creatingElement_g,
+            event.clientX,
+            event.clientY,
+            creatingElement_g.clickOffsetX,
+            creatingElement_g.clickOffsetY
+        );
+    }
 }
 function onMouseUp_Handler(event) {
     if (event.button !== LEFT_MOUSE_BUTTON) return;
     canResizing = false;
+
+    if (creatingElement_g) {
+        if (event.target !== board) {
+            _DeleteGtag(creatingElement_g);
+            creatingElement_g = null;
+            selectedBox_svg = null;
+        }
+    }
 }
 document.addEventListener("mousedown", onMouseDown_Handler);
 document.addEventListener("mousemove", onMouseMove_Handler);
 document.addEventListener("mouseup", onMouseUp_Handler);
-/////////////////////////////////////////////////////////////////////
+//#endregion
+/**********************************************************************************************/
+//#region Menu
 function onClick_Menu(event) {
     if (event.button !== LEFT_MOUSE_BUTTON) return;
     event.stopPropagation();
@@ -88,7 +139,8 @@ function onClick_Menu(event) {
 menus.forEach((menu) => {
     menu.addEventListener("click", onClick_Menu);
 });
-/////////////////////////////////////////////////////////////////////
+//#endregion
+/**********************************************************************************************/
 
 function selectNode(element, event) {
     //임시로 구현 => 선택 시 resizers을 그린 g태그를 visible하게 바꿀것임
@@ -108,17 +160,17 @@ function deSelectNode(element) {
 function deSelectNodeAll() {
     selectedElement = null;
     for (let target of selectedElement_set) {
-        console.log("hele");
+        console.log("[DESELECTED]", target);
         target.querySelector(".selectable").classList.remove("selected");
     }
     selectedElement_set.clear();
 }
 
 function onMouseDown_Board(event) {
-    console.log(event.target);
+    //console.log("[MOUSE_DOWN_EVENT_TARGET]",event.target);
     if (event.button !== LEFT_MOUSE_BUTTON) return;
     if (event.target === board) {
-        console.log("[selectedElement_set Clear!]");
+        //console.log("[SELECTED_ELEMENT_SET CLEAR!]");
         deSelectNodeAll();
     } else if (
         event.target.classList.contains("draggable") &&
@@ -135,18 +187,15 @@ function onMouseDown_Board(event) {
             }
         } else {
             if (selectedElement_set.has(picked_g)) {
-                //
+                selectNode(picked_g, event);
             } else {
                 deSelectNodeAll();
-                console.log(picked_g);
                 selectNode(picked_g, event);
             }
         }
         _SetSeletedOffsets();
 
-        console.log("tttt", selectedElement);
         board.removeChild(selectedElement);
-
         board.appendChild(selectedElement);
         isDragging = true;
     }
@@ -163,14 +212,23 @@ function onMouseMove_Board(event) {
         const [afterX, afterY] = [event.clientX, event.clientY];
         const deltaX = (afterX - selectedElement.clickOffsetX) / ZOOM_VAL;
         const deltaY = (afterY - selectedElement.clickOffsetY) / ZOOM_VAL;
-
+        // console.log("[CUR_CURSOR]", event.clientX, event.clientY);
+        // console.log(
+        //     "[CLICK_NODE_OFFSET]",
+        //     selectedElement.clickOffsetX,
+        //     selectedElement.clickOffsetY
+        // );
+        // console.log("[DELTA]",deltaX, deltaY);
         for (let target of selectedElement_set) {
             const targetX = Number(target.translateOffsetX) + Number(deltaX);
             const targetY = Number(target.translateOffsetY) + Number(deltaY);
             const [snapX, snapY] = _SnapBoardSpace(targetX, targetY);
-            target.setAttribute(
-                "transform",
-                `translate(${snapX} ${snapY}) scale(${target.scaleOffsetX} ${target.scaleOffsetY})`
+            _SetGtagTransform(
+                target,
+                snapX,
+                snapY,
+                target.scaleOffsetX,
+                target.scaleOffsetY
             );
         }
     }
@@ -179,6 +237,21 @@ function onMouseMove_Board(event) {
 function onMouseUp_Board(event) {
     if (event.button !== LEFT_MOUSE_BUTTON) return;
     isDragging = false;
+
+    if (creatingElement_g !== null) {
+        const board_pos = _ViewPort2BoardSpace(event.clientX, event.clientY);
+        const [snapX, snapY] = _SnapBoardSpace(board_pos.x, board_pos.y);
+        console.log(board_pos);
+        _SetGtagTransform(
+            creatingElement_g,
+            snapX,
+            snapY,
+            creatingElement_g.scaleOffsetX,
+            creatingElement_g.scaleOffsetY
+        );
+        creatingElement_g = null;
+        selectedBox_svg = null;
+    }
 }
 
 function makeDraggableWrapper(
@@ -193,10 +266,8 @@ function makeDraggableWrapper(
 
     const wrapper_g = document.createElementNS(ns, "g");
     const [snapX, snapY] = _SnapBoardSpace(x, y);
-    wrapper_g.setAttribute(
-        "transform",
-        `translate(${snapX} ${snapY}) scale(${size} ${size})`
-    );
+    _SetGtagTransform(wrapper_g, snapX, snapY, size, size);
+
     wrapper_g.translateOffsetX = Number(x);
     wrapper_g.translateOffsetY = Number(y);
     wrapper_g.scaleOffsetX = Number(size);
@@ -208,30 +279,61 @@ function makeDraggableWrapper(
     return wrapper_g;
 }
 
-pad_items.forEach((item) => {
-    item.addEventListener("click", function (event) {
+function initItemBox(box) {
+    function onMouseDown_ItemBox(event) {
+        console.log(event.currentTarget);
         if (event.button !== LEFT_MOUSE_BUTTON) return;
         const element = event.currentTarget
             .querySelector("rect,path")
             .cloneNode(true);
 
-        const g = makeDraggableWrapper(element, board, DEFAULT_NODE_SCALE);
-
-        const init_pos = _ViewPort2BoardSpace(
-            mid_region.clientWidth / 2 +
-                left_region.clientWidth +
-                handler.clientWidth -
-                g.getBoundingClientRect().width / 2,
-            mid_region.clientHeight / 2
+        const board_pos = _ViewPort2BoardSpace(event.clientX, event.clientY);
+        creatingElement_g = makeDraggableWrapper(
+            element,
+            board,
+            DEFAULT_NODE_SCALE,
+            board_pos.x,
+            board_pos.y
         );
+        creatingElement_g.clickOffsetX = event.clientX;
+        creatingElement_g.clickOffsetY = event.clientY;
+        selectedBox_svg = event.currentTarget;
+        console.log(selectedBox_svg);
+    }
 
-        const [snapX, snapY] = _SnapBoardSpace(init_pos.x, init_pos.y);
-        g.setAttribute(
-            "transform",
-            `translate(${snapX} ${snapY}) scale(${g.scaleOffsetX} ${g.scaleOffsetY})`
-        );
-    });
-});
+    function onMouseUp_ItemBox(event) {
+        event.stopPropagation();
+        if (event.button !== LEFT_MOUSE_BUTTON) return;
+        if (event.currentTarget === selectedBox_svg) {
+            const init_pos = _ViewPort2BoardSpace(
+                mid_region.clientWidth / 2 +
+                    left_region.clientWidth +
+                    handler.clientWidth -
+                    creatingElement_g.getBoundingClientRect().width / 2,
+                mid_region.clientHeight / 2
+            );
+
+            const [snapX, snapY] = _SnapBoardSpace(init_pos.x, init_pos.y);
+            _SetGtagTransform(
+                creatingElement_g,
+                snapX,
+                snapY,
+                creatingElement_g.scaleOffsetX,
+                creatingElement_g.scaleOffsetY
+            );
+        } else {
+            //When mouse up in Other box(trivial)
+        }
+        creatingElement_g = null;
+        selectedBox_svg = null;
+    }
+
+    ///////////////////////////////////////////////////////////////
+
+    box.addEventListener("mousedown", onMouseDown_ItemBox);
+    box.addEventListener("mouseup", onMouseUp_ItemBox);
+}
+item_boxes.forEach(initItemBox);
 
 board.addEventListener("mousedown", onMouseDown_Board);
 board.addEventListener("mousemove", onMouseMove_Board);
@@ -245,7 +347,7 @@ let std_board_pos = {};
 function onWheelDown_Board(event) {
     event.preventDefault();
     if (event.button !== MIDDLE_MOUSE_BUTTON) return;
-    console.log("wheel down");
+    //console.log("[WHEEL DOWN!]");
     std_board_pos.cur_scroll_top = scrollable_div.scrollTop;
     std_board_pos.cur_scroll_left = scrollable_div.scrollLeft;
 
@@ -258,7 +360,7 @@ function onWheelDown_Board(event) {
 
 function onWheelPressMove_Board(event) {
     if (!isGrabbing) return;
-    console.log("wheel move");
+    //console.log("[WHEEL_PRESSED_MOVE]");
 
     const dx = event.clientX - std_board_pos.x;
     const dy = event.clientY - std_board_pos.y;
@@ -269,7 +371,7 @@ function onWheelPressMove_Board(event) {
 
 function onWheelUp_Board(event) {
     if (event.button !== MIDDLE_MOUSE_BUTTON) return;
-    console.log("wheel up");
+    //console.log("[WHEEL UP]");
 
     isGrabbing = false;
     scrollable_div.style.cursor = "default";
@@ -293,3 +395,13 @@ function onWheel_Board(event) {
     }
 }
 board.addEventListener("mousewheel", onWheel_Board);
+
+function onKeyDownDel(event) {
+    if (event.key === "Delete" && selectedElement_set.size > 0) {
+        for (let target of selectedElement_set) {
+            _DeleteGtag(target);
+        }
+        console.log("[DELETE FINISH]");
+    }
+}
+document.addEventListener("keydown", onKeyDownDel);
