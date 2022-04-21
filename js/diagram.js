@@ -1,3 +1,4 @@
+"use strict";
 const handler = document.querySelector(".handler");
 const wrapper = document.querySelector(".contents");
 const left_region = document.querySelector(".left_region");
@@ -27,6 +28,8 @@ let selectedBox_svg = null;
 //Resizing left_region
 let canResizing = false;
 let clicked_Xpos = 0;
+
+let curResizersTag = null;
 /**********************************************************************************************/
 //#region Util
 let CTRLKEY = false;
@@ -141,15 +144,52 @@ menus.forEach((menu) => {
 });
 //#endregion
 /**********************************************************************************************/
+function hideReziers() {
+    if (curResizersTag) {
+        curResizersTag.remove();
+        curResizersTag = null;
+    }
+}
+function showResizers(wrapper_g) {
+    hideReziers();
+    const element = selectedElement.querySelector(".selected");
+    const resizers_g = document.createElementNS(ns, "g");
+    resizers_g.classList.add("resizers");
 
-function selectNode(element, event) {
+    const point = element.getPointAtLength(0);
+    const [offsetX, offsetY] = [point.x, point.y];
+    resizers_g.setAttribute(
+        "transform",
+        `translate(${offsetX} ${offsetY}) scale(1 1)`
+    );
+
+    const SVGRect = element.getBBox();
+
+    const resizer_T = makeResizer(SVGRect.width / 2, 0, 1);
+    const resizer_R = makeResizer(SVGRect.width, SVGRect.height / 2, 1);
+    const resizer_D = makeResizer(SVGRect.width / 2, SVGRect.height, 1);
+    const resizer_L = makeResizer(0, SVGRect.height / 2, 1);
+    //#endregion
+
+    resizers_g.appendChild(resizer_T);
+    resizers_g.appendChild(resizer_R);
+    resizers_g.appendChild(resizer_D);
+    resizers_g.appendChild(resizer_L);
+
+    wrapper_g.appendChild(resizers_g);
+    curResizersTag = resizers_g;
+}
+function selectNode(wrapper_g, event) {
+    //event.target = real tag
+    //element = top of g
     //임시로 구현 => 선택 시 resizers을 그린 g태그를 visible하게 바꿀것임
-    selectedElement = element;
-    //event.target === child of g
+    selectedElement = wrapper_g;
     event.target.classList.add("selected");
-    element.clickOffsetX = event.clientX;
-    element.clickOffsetY = event.clientY;
-    selectedElement_set.add(element);
+    wrapper_g.clickOffsetX = event.clientX;
+    wrapper_g.clickOffsetY = event.clientY;
+    selectedElement_set.add(wrapper_g);
+
+    _SetSeletedOffsets();
 }
 function deSelectNode(element) {
     selectedElement = null;
@@ -160,10 +200,8 @@ function deSelectNode(element) {
 function deSelectNodeAll() {
     selectedElement = null;
     for (let target of selectedElement_set) {
-        console.log("[DESELECTED]", target);
-        target.querySelector(".selectable").classList.remove("selected");
+        deSelectNode(target);
     }
-    selectedElement_set.clear();
 }
 
 function onMouseDown_Board(event) {
@@ -172,13 +210,13 @@ function onMouseDown_Board(event) {
     if (event.target === board) {
         //console.log("[SELECTED_ELEMENT_SET CLEAR!]");
         deSelectNodeAll();
+        hideReziers();
     } else if (
         event.target.classList.contains("draggable") &&
         event.target.classList.contains("selectable")
     ) {
         // pick g tag
         const picked_g = event.target.parentNode;
-
         if (event.ctrlKey) {
             if (selectedElement_set.has(picked_g)) {
                 deSelectNode(picked_g);
@@ -188,12 +226,13 @@ function onMouseDown_Board(event) {
         } else {
             if (selectedElement_set.has(picked_g)) {
                 selectNode(picked_g, event);
+                showResizers(picked_g);
             } else {
                 deSelectNodeAll();
                 selectNode(picked_g, event);
+                showResizers(picked_g);
             }
         }
-        _SetSeletedOffsets();
 
         if (selectedElement) {
             board.removeChild(selectedElement);
@@ -256,7 +295,15 @@ function onMouseUp_Board(event) {
     }
 }
 
-function makeDraggableWrapper(
+function makeResizer(cx, cy, r) {
+    const resizer = document.createElementNS(ns, "circle");
+    resizer.setAttribute("cx", cx);
+    resizer.setAttribute("cy", cy);
+    resizer.setAttribute("r", r);
+
+    return resizer;
+}
+function makeNode(
     element,
     parent = null,
     size = DEFAULT_NODE_SCALE,
@@ -265,6 +312,7 @@ function makeDraggableWrapper(
 ) {
     element.classList.add("draggable");
     element.classList.add("selectable");
+    element.classList.add("resizable");
 
     const wrapper_g = document.createElementNS(ns, "g");
     const [snapX, snapY] = _SnapBoardSpace(x, y);
@@ -286,11 +334,11 @@ function initItemBox(box) {
         console.log(event.currentTarget);
         if (event.button !== LEFT_MOUSE_BUTTON) return;
         const element = event.currentTarget
-            .querySelector("rect,path")
+            .querySelector(".item")
             .cloneNode(true);
 
         const board_pos = _ViewPort2BoardSpace(event.clientX, event.clientY);
-        creatingElement_g = makeDraggableWrapper(
+        creatingElement_g = makeNode(
             element,
             board,
             DEFAULT_NODE_SCALE,
